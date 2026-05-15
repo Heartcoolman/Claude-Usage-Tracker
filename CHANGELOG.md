@@ -5,6 +5,29 @@ All notable changes to Claude Usage Tracker will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-05-15
+
+### New Features
+
+- **reclaude.ai Carpool Quota Tracking**: First-class support for the reclaude.ai 5-hour carpool USD quota alongside Anthropic's session/weekly token metrics
+  - New popover card showing USD spend, quota and reset countdown
+  - Session menu bar icon repurposes carpool USD% when reclaude is the active credential
+  - Per-profile credential entry under Settings → Credentials → reclaude
+  - Configurable threshold notifications for the carpool quota
+  - Statusline cache includes the latest reclaude snapshot for instant terminal rendering
+  - Auto-refresh with 401 cookie rotation and a 5-minute back-off after failed login
+- **Soft Handling for `sk-rec-*` Proxy Tokens**: Profiles that only have a reclaude proxy token no longer trip the credential-error banner machinery — Anthropic Messages API is skipped silently and reclaude data continues to flow
+
+### Bug Fixes
+
+- **Menu Bar Icon Stale on Reclaude-Only Updates**: Repaint icons after the reclaude fetch — previously only `usage` updates triggered a redraw, leaving the carpool icon stale until any config toggle forced a rerender
+
+### Internal
+
+- New `ReclaudeAPIService`, `ReclaudeUsage` model, dedicated tests, and i18n strings across 17 locales
+
+---
+
 ## [3.1.1] - 2026-04-21
 
 ### New Features

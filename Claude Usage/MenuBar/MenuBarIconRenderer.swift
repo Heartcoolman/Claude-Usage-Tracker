@@ -19,6 +19,7 @@ final class MenuBarIconRenderer {
         globalConfig: MenuBarIconConfiguration,
         usage: ClaudeUsage,
         apiUsage: APIUsage?,
+        reclaudeUsage: ReclaudeUsage? = nil,
         isDarkMode: Bool,
         colorMode: MenuBarColorMode,
         singleColorHex: String,
@@ -31,6 +32,7 @@ final class MenuBarIconRenderer {
             config: config,
             usage: usage,
             apiUsage: apiUsage,
+            reclaudeUsage: reclaudeUsage,
             showRemaining: globalConfig.showRemainingPercentage,
             usePaceColoring: globalConfig.usePaceColoring
         )
@@ -40,21 +42,31 @@ final class MenuBarIconRenderer {
             ? calculateTimeMarkerFraction(
                 metricType: metricType,
                 usage: usage,
+                reclaudeUsage: reclaudeUsage,
                 showRemaining: globalConfig.showRemainingPercentage
             )
             : nil
 
-        // Compute pace status from RAW values (not display-adjusted)
+        // Compute pace status from RAW values (not display-adjusted).
+        // Skip for API + reclaude — neither maps cleanly to elapsed-time pace.
         let paceStatus: PaceStatus? = {
-            guard globalConfig.showPaceMarker, metricType != .api else { return nil }
-            // Get raw elapsed fraction (always non-inverted)
+            guard globalConfig.showPaceMarker,
+                  metricType != .api,
+                  metricType != .reclaude else { return nil }
             guard let rawElapsed = calculateTimeMarkerFraction(
-                metricType: metricType, usage: usage, showRemaining: false
+                metricType: metricType, usage: usage, reclaudeUsage: reclaudeUsage, showRemaining: false
             ) else { return nil }
-            // Get raw used percentage
-            let rawUsed: Double = metricType == .session
-                ? usage.sessionPercentage
-                : usage.weeklyPercentage
+            // When the session metric is being repurposed for carpool data
+            // (see getMetricData), the "used" pace input must match — use
+            // the USD spend percentage so the pace marker is consistent.
+            let rawUsed: Double
+            if metricType == .session, let r = reclaudeUsage, r.isActive {
+                rawUsed = Double(r.usdPercentage)
+            } else if metricType == .session {
+                rawUsed = usage.sessionPercentage
+            } else {
+                rawUsed = usage.weeklyPercentage
+            }
             return PaceStatus.calculate(
                 usedPercentage: rawUsed,
                 elapsedFraction: Double(rawElapsed)
@@ -62,8 +74,8 @@ final class MenuBarIconRenderer {
         }()
         let showPaceMarker = globalConfig.showPaceMarker
 
-        // API is ALWAYS text-based (no icon styles)
-        if metricType == .api {
+        // API and Reclaude are ALWAYS text-based (no icon styles).
+        if metricType == .api || metricType == .reclaude {
             return createAPITextStyle(
                 metricData: metricData,
                 isDarkMode: isDarkMode,
@@ -154,11 +166,37 @@ final class MenuBarIconRenderer {
         config: MetricIconConfig,
         usage: ClaudeUsage,
         apiUsage: APIUsage?,
+        reclaudeUsage: ReclaudeUsage? = nil,
         showRemaining: Bool,
         usePaceColoring: Bool = true
     ) -> MetricData {
         switch metricType {
         case .session:
+            // When the active profile carries live reclaude carpool data,
+            // repurpose the session metric icon to render USD spend in the
+            // 5h carpool window — proxy accounts can't surface real
+            // Anthropic session %, and this keeps the icon visually
+            // consistent with the popover's carpool repurposing.
+            if let r = reclaudeUsage, r.isActive {
+                let usedPercentage = Double(r.usdPercentage)
+                let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
+                    usedPercentage: usedPercentage,
+                    showRemaining: showRemaining
+                )
+                let elapsed: Double? = usePaceColoring ? r.timeElapsedFraction : nil
+                let statusLevel = UsageStatusCalculator.calculateStatus(
+                    usedPercentage: usedPercentage,
+                    showRemaining: showRemaining,
+                    elapsedFraction: elapsed
+                )
+                return MetricData(
+                    percentage: displayPercentage,
+                    displayText: "\(Int(displayPercentage))%",
+                    statusLevel: statusLevel,
+                    sessionResetTime: r.resetAt
+                )
+            }
+
             let usedPercentage = usage.effectiveSessionPercentage
             let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
                 usedPercentage: usedPercentage,
@@ -246,6 +284,42 @@ final class MenuBarIconRenderer {
                 displayText = apiUsage.formattedUsed
             case .both:
                 displayText = "\(apiUsage.formattedUsed)/\(apiUsage.formattedTotal)"
+            }
+
+            return MetricData(
+                percentage: displayPercentage,
+                displayText: displayText,
+                statusLevel: statusLevel,
+                sessionResetTime: nil
+            )
+
+        case .reclaude:
+            guard let r = reclaudeUsage, r.isActive, r.quotaUsd > 0 else {
+                return MetricData(
+                    percentage: showRemaining ? 100 : 0,
+                    displayText: "N/A",
+                    statusLevel: .safe,
+                    sessionResetTime: nil
+                )
+            }
+            let usedPercentage = Double(r.usdPercentage)
+            let displayPercentage = UsageStatusCalculator.getDisplayPercentage(
+                usedPercentage: usedPercentage,
+                showRemaining: showRemaining
+            )
+            let statusLevel = UsageStatusCalculator.calculateStatus(
+                usedPercentage: usedPercentage,
+                showRemaining: showRemaining
+            )
+
+            let displayText: String
+            switch config.resolvedReclaudeDisplayMode {
+            case .percentage:
+                displayText = "\(Int(displayPercentage))%"
+            case .dollarsUsed:
+                displayText = String(format: "$%.2f", r.usedUsd)
+            case .dollarsRemaining:
+                displayText = String(format: "$%.2f", max(0, r.quotaUsd - r.usedUsd))
             }
 
             return MetricData(
@@ -1391,6 +1465,7 @@ final class MenuBarIconRenderer {
     private func calculateTimeMarkerFraction(
         metricType: MenuBarMetricType,
         usage: ClaudeUsage,
+        reclaudeUsage: ReclaudeUsage? = nil,
         showRemaining: Bool
     ) -> CGFloat? {
         let resetTime: Date?
@@ -1398,12 +1473,20 @@ final class MenuBarIconRenderer {
 
         switch metricType {
         case .session:
-            resetTime = usage.sessionResetTime
-            duration = Constants.sessionWindow
+            // Mirror getMetricData's carpool repurposing — when reclaude
+            // carpool is the live data source, the time marker tracks its
+            // 5h window rather than Anthropic's session window.
+            if let r = reclaudeUsage, r.isActive {
+                resetTime = r.resetAt
+                duration = ReclaudeUsage.windowDuration
+            } else {
+                resetTime = usage.sessionResetTime
+                duration = Constants.sessionWindow
+            }
         case .week:
             resetTime = usage.weeklyResetTime
             duration = Constants.weeklyWindow
-        case .api:
+        case .api, .reclaude:
             return nil
         }
 

@@ -30,6 +30,9 @@ enum Constants {
         static let apiSessionKey = "apiSessionKey"
         static let apiOrganizationId = "apiOrganizationId"
 
+        // Reclaude.ai carpool quota
+        static let reclaudeUsageData = "reclaudeUsageData"
+
         // Menu bar icon style (legacy - kept for backwards compatibility)
         static let menuBarIconStyle = "menuBarIconStyle"
         static let monochromeMode = "monochromeMode"
@@ -147,6 +150,9 @@ enum Constants {
     enum APIEndpoints {
         static let claudeBase = "https://claude.ai/api"
         static let consoleBase = "https://console.anthropic.com/api"
+        static let reclaudeBase = "https://reclaude.ai"
+        static let reclaudeCarpoolQuota = "https://reclaude.ai/api/app/billing/carpool-quota"
+        static let reclaudeLogin = "https://reclaude.ai/api/auth/login"
     }
 
     // UI Timing

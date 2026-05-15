@@ -372,6 +372,28 @@ class DataStore: StorageProvider {
         return defaults.string(forKey: Constants.UserDefaultsKeys.apiOrganizationId)
     }
 
+    // MARK: - Reclaude Usage Tracking
+
+    /// Saves reclaude.ai carpool quota snapshot to shared storage.
+    /// Mirrors `saveAPIUsage` — written alongside the per-profile copy so
+    /// statusline / quick lookups don't need to traverse ProfileManager.
+    func saveReclaudeUsage(_ usage: ReclaudeUsage) {
+        do {
+            let data = try encoder.encode(usage)
+            defaults.set(data, forKey: Constants.UserDefaultsKeys.reclaudeUsageData)
+        } catch {
+            LoggingService.shared.logStorageError("saveReclaudeUsage", error: error)
+        }
+    }
+
+    /// Loads reclaude.ai carpool quota snapshot from shared storage.
+    func loadReclaudeUsage() -> ReclaudeUsage? {
+        guard let data = defaults.data(forKey: Constants.UserDefaultsKeys.reclaudeUsageData) else {
+            return nil
+        }
+        return try? decoder.decode(ReclaudeUsage.self, from: data)
+    }
+
     // MARK: - Menu Bar Icon Style
 
     /// Saves menu bar icon style preference

@@ -176,6 +176,29 @@ class NotificationManager: NotificationServiceProtocol {
         }
     }
 
+    /// Checks reclaude.ai USD% against per-profile reclaude thresholds and
+    /// sends a profile-scoped alert when crossed. Uses the standard
+    /// `<profile>_<rawValue>_<level>` dedup ID so the same threshold doesn't
+    /// fire twice within a window.
+    func checkAndNotify(reclaude: ReclaudeUsage, profileName: String, settings: NotificationSettings) {
+        guard settings.enabled, settings.reclaudeEnabled, reclaude.isActive else { return }
+
+        let percent = Double(reclaude.usdPercentage)
+        let thresholds = settings.sortedReclaudeThresholds
+        for threshold in thresholds.reversed() where percent >= Double(threshold) {
+            let type: AlertType = threshold >= 90 ? .reclaudeCritical : .reclaudeWarning
+            sendProfileAlert(
+                profileName: profileName,
+                type: type,
+                percentage: percent,
+                thresholdLevel: threshold,
+                resetTime: reclaude.resetAt,
+                soundName: settings.soundName
+            )
+            break
+        }
+    }
+
     /// Checks usage and sends appropriate alerts (legacy, for backwards compatibility)
     func checkAndNotify(usage: ClaudeUsage) {
         // Fallback to old behavior if called without profile
@@ -373,6 +396,8 @@ extension NotificationManager {
         case weeklyCritical = "weekly_critical"
         case opusWarning = "opus_warning"
         case opusCritical = "opus_critical"
+        case reclaudeWarning = "reclaude_warning"
+        case reclaudeCritical = "reclaude_critical"
         case sessionKeyExpiring = "session_key_expiring"
         case notificationsEnabled = "notifications_enabled"
 
@@ -398,6 +423,10 @@ extension NotificationManager {
                 return "notification.opus_warning.title".localized
             case .opusCritical:
                 return "notification.opus_critical.title".localized
+            case .reclaudeWarning:
+                return "notification.reclaude_warning.title".localized
+            case .reclaudeCritical:
+                return "notification.reclaude_critical.title".localized
             case .sessionKeyExpiring:
                 return "API Session Expiring"
             case .notificationsEnabled:
@@ -430,6 +459,10 @@ extension NotificationManager {
                 return "notification.opus_warning.message".localized(with: percentStr, resetStr)
             case .opusCritical:
                 return "notification.opus_critical.message".localized(with: percentStr, resetStr)
+            case .reclaudeWarning:
+                return "notification.reclaude_warning.message".localized(with: percentStr, resetStr)
+            case .reclaudeCritical:
+                return "notification.reclaude_critical.message".localized(with: percentStr, resetStr)
             case .sessionKeyExpiring:
                 if let resetTime = resetTime {
                     let formatter = RelativeDateTimeFormatter()

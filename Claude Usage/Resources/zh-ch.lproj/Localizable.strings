@@ -23,6 +23,7 @@
 "common.delete" = "删除";
 "common.done" = "完成";
 "common.close" = "关闭";
+"auth.sheet.done_help" = "登录后如果窗口没自动关闭，点这里捕获当前会话 cookie。";
 "common.refresh" = "刷新";
 "common.settings" = "设置";
 "common.quit" = "退出";
@@ -59,6 +60,8 @@
 /* ==================== */
 "menubar.claude_usage" = "Claude 使用情况";
 "menubar.session_usage" = "会话使用量";
+"menubar.carpool_usage" = "拼车使用量";
+"menubar.carpool_refresh" = "拼车刷新";
 "menubar.weekly_usage" = "每周";
 "menubar.opus_usage" = "Opus";
 "menubar.sonnet_usage" = "Sonnet";
@@ -975,3 +978,72 @@
 "notifications.sound.default" = "默认";
 "notifications.sound.none" = "无";
 "notifications.sound.preview" = "预览声音";
+
+// MARK: - Reclaude.ai 拼车配额
+"section.reclaude_title" = "Reclaude";
+"section.reclaude_desc" = "跟踪 reclaude.ai 拼车配额";
+"reclaude.title" = "Reclaude 拼车";
+"reclaude.subtitle" = "跟踪你的 reclaude.ai 共享拼车配额";
+"reclaude.configuration_title" = "配置";
+"reclaude.signin_button" = "登录 Reclaude";
+"reclaude.signin_sheet_title" = "登录 reclaude.ai";
+"reclaude.signin_description" = "登录 reclaude.ai 自动获取 rc_sid cookie，或在下方手动粘贴。";
+"reclaude.login_description" = "使用 reclaude.ai 邮箱密码一键登录。密码安全存放在 macOS 钥匙串，cookie 失效时 App 会自动用它重新登录续期。";
+"reclaude.step.signin" = "登录";
+"reclaude.step.auto_refresh" = "自动续期";
+"reclaude.label_cookie" = "rc_sid cookie";
+"reclaude.help_cookie" = "打开 reclaude.ai → 开发者工具 → Application → Cookies → 复制 rc_sid 的值。";
+"reclaude.hint_session_short_lived" = "rc_sid 在服务端寿命很短（约 1-2 分钟），手粘几乎都会失败。直接「下一步」用邮箱密码配自动续期更稳。";
+"reclaude.label_api_url" = "API 地址";
+"reclaude.help_api_url" = "默认走账号的默认组织。若默认组织无拼车额度，请改成形如 …/carpool-quota?org_id=<拼车组织ID> 的完整 URL（与 claude-hud 的 display.reclaude.apiUrl 行为一致）。";
+"reclaude.enable_auto_refresh" = "启用自动重新登录";
+"reclaude.auto_refresh_description" = "Cookie 失效时，使用下方凭据自动重新登录刷新。";
+"reclaude.email" = "邮箱";
+"reclaude.password" = "密码";
+"reclaude.password_keychain_info" = "密码存储在 macOS 钥匙串中，仅在会话过期时用于重新登录。";
+"reclaude.usd_used" = "已花费";
+"reclaude.usd_quota" = "配额";
+"reclaude.cooldown_active" = "登录失败后自动续期已暂停 5 分钟";
+"reclaude.summary_amount" = "本 5 小时窗口已使用 $%.2f / $%.2f。";
+"reclaude.summary_cookie" = "Cookie：%@";
+"reclaude.test_success_with_amount" = "已连接。$%.2f / $%.2f。";
+"reclaude.error.no_profile" = "没有可绑定 reclaude 凭据的配置文件。";
+"popover.reclaude_title" = "Reclaude";
+"popover.reclaude_carpool" = "拼车";
+"menubar.reclaude" = "Reclaude";
+"notification.reclaude_warning.title" = "Reclaude 配额预警";
+"notification.reclaude_warning.message" = "拼车配额已达 %@。重置时间：%@。";
+"notification.reclaude_critical.title" = "Reclaude 配额紧急";
+"notification.reclaude_critical.message" = "拼车配额已达 %@。重置时间：%@。";
+"statusline.reclaude_label" = "Reclaude";
+"error.reclaude_not_configured" = "Reclaude 未配置";
+"error.reclaude_not_configured.suggestion" = "前往 设置 → Reclaude 登录以获取 rc_sid cookie。";
+"error.reclaude_unauthorized" = "Reclaude 会话已过期";
+"error.reclaude_unauthorized.suggestion" = "前往 设置 → Reclaude 重新登录，或启用自动续期。";
+"error.reclaude_invalid_response" = "reclaude.ai 返回了意外的响应";
+"error.reclaude_login_failed" = "登录 reclaude.ai 失败";
+"error.reclaude_login_failed.suggestion" = "请在 设置 → Reclaude 中检查邮箱和密码。";
+"error.reclaude_no_cookie" = "登录成功但未返回 rc_sid cookie。";
+"error.reclaude_cooldown" = "自动续期处于冷却中，请稍后再试。";
+"error.reclaude_cooldown.suggestion" = "登录失败后请等待 5 分钟，或手动重新输入凭据。";
+"error.reclaude_no_profile" = "没有活动配置文件。";
+"error.cli_account_is_reclaude_proxy" = "当前 CLI 账户是 reclaude 中转账号（sk-rec- 前缀），无法读取 Anthropic 官方用量。";
+"error.cli_account_is_reclaude_proxy.suggestion" = "如果你只用拼车，无需 CLI 同步——可在 设置 → CLI 账户 点「移除」清掉。";
+"error.reclaude_carpool_not_entitled" = "该组织无拼车额度";
+"error.reclaude_carpool_not_entitled.suggestion" = "把 API 地址改成 …/carpool-quota?org_id=<拼车组织ID> 指向有拼车的组织。";
+"error.reclaude_generic" = "reclaude.ai 返回了未知错误";
+"wizard.test_success" = "连接成功。";
+
+"common.or" = "或";
+
+// MARK: - Claude Code 状态栏 Reclaude 开关
+"claudecode.component_reclaude" = "Reclaude 拼车配额";
+"claudecode.component_reclaude_description" = "使用 App 写入的缓存渲染 reclaude.ai 5 小时 USD 配额。";
+"claudecode.component_reclaude_time_bar" = "显示 5 小时时间进度条";
+"claudecode.component_reclaude_time_bar_description" = "第二条进度条，显示当前 5 小时窗口已流逝多少。";
+"claudecode.reclaude_label" = "标签";
+
+// MARK: - Reclaude 通知开关
+"notifications.reclaude_enable" = "启用 Reclaude 提醒";
+"notifications.reclaude_enable.description" = "reclaude.ai 拼车 USD 花费跨过阈值时发送通知。";
+"notifications.reclaude_thresholds" = "Reclaude USD 阈值 (%)";

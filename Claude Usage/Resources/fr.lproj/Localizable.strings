@@ -955,3 +955,64 @@
 "notifications.sound.default" = "Par défaut";
 "notifications.sound.none" = "Aucun";
 "notifications.sound.preview" = "Aperçu du son";
+
+// MARK: - Reclaude.ai Carpool Quota (English fallback — translate later)
+"section.reclaude_title" = "Reclaude";
+"section.reclaude_desc" = "Track reclaude.ai carpool quota";
+"reclaude.title" = "Reclaude Carpool";
+"reclaude.subtitle" = "Track your reclaude.ai shared carpool quota";
+"reclaude.configuration_title" = "CONFIGURATION";
+"reclaude.signin_button" = "Sign in to Reclaude";
+"reclaude.signin_sheet_title" = "Sign in to reclaude.ai";
+"reclaude.signin_description" = "Sign in to reclaude.ai to capture your rc_sid cookie, or paste it manually below.";
+"reclaude.step.signin" = "Sign in";
+"reclaude.step.auto_refresh" = "Auto-refresh";
+"reclaude.label_cookie" = "rc_sid cookie";
+"reclaude.help_cookie" = "Open reclaude.ai → DevTools → Application → Cookies → copy the rc_sid value.";
+"reclaude.enable_auto_refresh" = "Enable auto re-login";
+"reclaude.auto_refresh_description" = "When the cookie expires, refresh it automatically by logging in with the credentials below.";
+"reclaude.email" = "Email";
+"reclaude.password" = "Password";
+"reclaude.password_keychain_info" = "Password is stored in macOS Keychain and used only to refresh an expired session.";
+"reclaude.usd_used" = "Spent";
+"reclaude.usd_quota" = "Quota";
+"reclaude.cooldown_active" = "Auto-refresh paused for 5 minutes after failed login";
+"reclaude.summary_amount" = "Currently using $%.2f of $%.2f this 5-hour window.";
+"reclaude.summary_cookie" = "Cookie: %@";
+"reclaude.test_success_with_amount" = "Connected. $%.2f / $%.2f.";
+"reclaude.error.no_profile" = "No active profile to attach reclaude credentials to.";
+"popover.reclaude_title" = "Reclaude";
+"popover.reclaude_carpool" = "Carpool";
+"menubar.reclaude" = "Reclaude";
+"notification.reclaude_warning.title" = "Reclaude Quota Warning";
+"notification.reclaude_warning.message" = "Carpool quota at %@. Resets %@.";
+"notification.reclaude_critical.title" = "Reclaude Quota Critical";
+"notification.reclaude_critical.message" = "Carpool quota at %@. Resets %@.";
+"statusline.reclaude_label" = "Reclaude";
+"error.reclaude_not_configured" = "Reclaude not configured";
+"error.reclaude_not_configured.suggestion" = "Sign in via Settings → Reclaude to capture an rc_sid cookie.";
+"error.reclaude_unauthorized" = "Reclaude session expired";
+"error.reclaude_unauthorized.suggestion" = "Sign in again from Settings → Reclaude, or enable auto-refresh.";
+"error.reclaude_invalid_response" = "Unexpected response from reclaude.ai";
+"error.reclaude_login_failed" = "Failed to sign in to reclaude.ai";
+"error.reclaude_login_failed.suggestion" = "Check your email and password in Settings → Reclaude.";
+"error.reclaude_no_cookie" = "Sign-in succeeded but no rc_sid cookie was returned.";
+"error.reclaude_cooldown" = "Auto-refresh on cooldown — try again in a few minutes.";
+"error.reclaude_cooldown.suggestion" = "Wait 5 minutes after a failed login, or re-enter credentials manually.";
+"error.reclaude_no_profile" = "No active profile.";
+"error.reclaude_generic" = "Unexpected error from reclaude.ai";
+"wizard.test_success" = "Connection OK.";
+
+"common.or" = "OR";
+
+// MARK: - Claude Code Statusline Reclaude toggles (English fallback)
+"claudecode.component_reclaude" = "Reclaude carpool";
+"claudecode.component_reclaude_description" = "Render reclaude.ai 5-hour USD quota using the cache the app writes.";
+"claudecode.component_reclaude_time_bar" = "Show 5-hour time bar";
+"claudecode.component_reclaude_time_bar_description" = "Second bar showing how much of the rolling 5-hour window has elapsed.";
+"claudecode.reclaude_label" = "Label";
+
+// MARK: - Reclaude notification toggles (English fallback)
+"notifications.reclaude_enable" = "Enable Reclaude alerts";
+"notifications.reclaude_enable.description" = "Send notifications when reclaude.ai carpool USD spend crosses a threshold.";
+"notifications.reclaude_thresholds" = "Reclaude USD thresholds (%)";

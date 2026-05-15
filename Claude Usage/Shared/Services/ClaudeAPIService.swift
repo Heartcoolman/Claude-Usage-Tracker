@@ -90,12 +90,22 @@ class ClaudeAPIService: APIServiceProtocol {
             }
         }
 
-        // Fall back to saved CLI OAuth token if available and not expired
+        // Fall back to saved CLI OAuth token if available and not expired.
+        // Token prefix `sk-rec-` denotes a reclaude.ai proxy account — that
+        // path can't query api.anthropic.com (always 401), so skip it here
+        // and remember the fact so we can return a friendlier error below
+        // when no other auth method works either.
+        var sawReclaudeProxyToken = false
         if let cliJSON = activeProfile.cliCredentialsJSON {
             if !ClaudeCodeSyncService.shared.isTokenExpired(cliJSON),
                let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: cliJSON) {
-                LoggingService.shared.log("ClaudeAPIService: Falling back to saved CLI OAuth token")
-                return .cliOAuth(accessToken)
+                if Self.isReclaudeProxyToken(accessToken) {
+                    LoggingService.shared.log("ClaudeAPIService: Saved CLI token is a reclaude.ai proxy token (sk-rec-…) — skipping Anthropic Messages API")
+                    sawReclaudeProxyToken = true
+                } else {
+                    LoggingService.shared.log("ClaudeAPIService: Falling back to saved CLI OAuth token")
+                    return .cliOAuth(accessToken)
+                }
             } else {
                 LoggingService.shared.log("ClaudeAPIService: Saved CLI OAuth token is expired or invalid")
             }
@@ -110,8 +120,13 @@ class ClaudeAPIService: APIServiceProtocol {
                 if ClaudeCodeSyncService.shared.isTokenExpired(systemCredentials) {
                     LoggingService.shared.log("ClaudeAPIService: System Keychain CLI token is expired")
                 } else if let accessToken = ClaudeCodeSyncService.shared.extractAccessToken(from: systemCredentials) {
-                    LoggingService.shared.log("ClaudeAPIService: Using CLI credentials from system Keychain")
-                    return .cliOAuth(accessToken)
+                    if Self.isReclaudeProxyToken(accessToken) {
+                        LoggingService.shared.log("ClaudeAPIService: System Keychain CLI token is a reclaude.ai proxy token (sk-rec-…) — skipping Anthropic Messages API")
+                        sawReclaudeProxyToken = true
+                    } else {
+                        LoggingService.shared.log("ClaudeAPIService: Using CLI credentials from system Keychain")
+                        return .cliOAuth(accessToken)
+                    }
                 } else {
                     LoggingService.shared.log("ClaudeAPIService: Could not extract access token from system Keychain credentials")
                 }
@@ -122,8 +137,19 @@ class ClaudeAPIService: APIServiceProtocol {
             LoggingService.shared.log("ClaudeAPIService: Could not read system CLI credentials: \(error.localizedDescription)")
         }
 
+        if sawReclaudeProxyToken {
+            LoggingService.shared.logError("ClaudeAPIService.getAuthentication: only CLI credentials available are sk-rec-* reclaude proxy tokens, which Anthropic Messages API rejects")
+            throw AppError.cliAccountIsReclaudeProxy()
+        }
         LoggingService.shared.logError("ClaudeAPIService.getAuthentication: No valid credentials for usage data")
         throw AppError.sessionKeyNotFound()
+    }
+
+    /// True when the OAuth access token looks like a reclaude.ai proxy token
+    /// (prefix `sk-rec-`). Anthropic-issued tokens use `sk-ant-` and reclaude's
+    /// upstream proxy mints its own under the `sk-rec-` namespace.
+    private static func isReclaudeProxyToken(_ token: String) -> Bool {
+        token.hasPrefix("sk-rec-") || token.hasPrefix("sk-rec_")
     }
 
     /// Builds an authenticated request with the appropriate headers for the auth type

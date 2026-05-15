@@ -279,6 +279,11 @@ class ProfileManager: ObservableObject {
             profiles[index].apiOrganizationId = credentials.apiOrganizationId
             profiles[index].cliCredentialsJSON = credentials.cliCredentialsJSON
 
+            profiles[index].reclaudeSessionCookie = credentials.reclaudeSessionCookie
+            profiles[index].reclaudeEmail = credentials.reclaudeEmail
+            profiles[index].reclaudeAutoRefresh = credentials.reclaudeAutoRefresh
+            profiles[index].reclaudeApiUrl = credentials.reclaudeApiUrl
+
             if activeProfile?.id == profileId {
                 activeProfile = profiles[index]
             }
@@ -309,6 +314,35 @@ class ProfileManager: ObservableObject {
         LoggingService.shared.log("ProfileManager: Removed Claude.ai credentials for profile \(profileId)")
 
         // Post single notification for credential change
+        NotificationCenter.default.post(name: .credentialsChanged, object: nil)
+    }
+
+    /// Removes reclaude.ai credentials for a profile: clears the profile's
+    /// stored `rc_sid` + email + auto-refresh flag, wipes the per-profile
+    /// password from Keychain, and drops the cached `reclaudeUsage` snapshot.
+    func removeReclaudeCredentials(for profileId: UUID) throws {
+        var creds = try profileStore.loadProfileCredentials(profileId)
+        creds.reclaudeSessionCookie = nil
+        creds.reclaudeEmail = nil
+        creds.reclaudeAutoRefresh = false
+        try profileStore.saveProfileCredentials(profileId, credentials: creds)
+
+        try? KeychainService.shared.deleteReclaudePassword(profileId: profileId)
+
+        if let index = profiles.firstIndex(where: { $0.id == profileId }) {
+            profiles[index].reclaudeSessionCookie = nil
+            profiles[index].reclaudeEmail = nil
+            profiles[index].reclaudeAutoRefresh = false
+            profiles[index].reclaudeUsage = nil
+            profiles[index].reclaudePasswordCooldownUntil = nil
+
+            if activeProfile?.id == profileId {
+                activeProfile = profiles[index]
+            }
+            profileStore.saveProfiles(profiles)
+        }
+
+        LoggingService.shared.log("ProfileManager: Removed Reclaude credentials for profile \(profileId)")
         NotificationCenter.default.post(name: .credentialsChanged, object: nil)
     }
 
@@ -387,6 +421,27 @@ class ProfileManager: ObservableObject {
     /// Loads API usage data for a specific profile
     func loadAPIUsage(for profileId: UUID) -> APIUsage? {
         return profiles.first(where: { $0.id == profileId })?.apiUsage
+    }
+
+    /// Saves reclaude.ai carpool quota snapshot for a specific profile.
+    func saveReclaudeUsage(_ usage: ReclaudeUsage, for profileId: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == profileId }) else {
+            LoggingService.shared.logError("saveReclaudeUsage: Profile not found with ID: \(profileId)")
+            return
+        }
+
+        profiles[index].reclaudeUsage = usage
+
+        if activeProfile?.id == profileId {
+            activeProfile = profiles[index]
+        }
+
+        profileStore.saveProfiles(profiles)
+    }
+
+    /// Loads cached reclaude.ai snapshot for a specific profile.
+    func loadReclaudeUsage(for profileId: UUID) -> ReclaudeUsage? {
+        return profiles.first(where: { $0.id == profileId })?.reclaudeUsage
     }
 
     // MARK: - Profile Settings

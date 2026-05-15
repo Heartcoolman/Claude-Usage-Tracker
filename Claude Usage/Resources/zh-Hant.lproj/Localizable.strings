@@ -23,6 +23,7 @@
 "common.delete" = "刪除";
 "common.done" = "完成";
 "common.close" = "關閉";
+"auth.sheet.done_help" = "登入後若視窗未自動關閉，點這裡擷取目前 Session cookie。";
 "common.refresh" = "重新整理";
 "common.settings" = "設定";
 "common.quit" = "結束";
@@ -975,3 +976,64 @@
 "notifications.sound.default" = "預設";
 "notifications.sound.none" = "無";
 "notifications.sound.preview" = "預覽聲音";
+
+// MARK: - Reclaude.ai 拼車配額
+"section.reclaude_title" = "Reclaude";
+"section.reclaude_desc" = "追蹤 reclaude.ai 拼車配額";
+"reclaude.title" = "Reclaude 拼車";
+"reclaude.subtitle" = "追蹤你的 reclaude.ai 共享拼車配額";
+"reclaude.configuration_title" = "設定";
+"reclaude.signin_button" = "登入 Reclaude";
+"reclaude.signin_sheet_title" = "登入 reclaude.ai";
+"reclaude.signin_description" = "登入 reclaude.ai 自動擷取 rc_sid cookie，或於下方手動貼上。";
+"reclaude.step.signin" = "登入";
+"reclaude.step.auto_refresh" = "自動續期";
+"reclaude.label_cookie" = "rc_sid cookie";
+"reclaude.help_cookie" = "開啟 reclaude.ai → 開發者工具 → Application → Cookies → 複製 rc_sid 的值。";
+"reclaude.enable_auto_refresh" = "啟用自動重新登入";
+"reclaude.auto_refresh_description" = "Cookie 失效時,使用下方憑證自動重新登入並更新。";
+"reclaude.email" = "電子郵件";
+"reclaude.password" = "密碼";
+"reclaude.password_keychain_info" = "密碼儲存於 macOS 鑰匙圈,僅在 Session 過期時用於重新登入。";
+"reclaude.usd_used" = "已花費";
+"reclaude.usd_quota" = "配額";
+"reclaude.cooldown_active" = "登入失敗後自動續期已暫停 5 分鐘";
+"reclaude.summary_amount" = "本 5 小時時段已使用 $%.2f / $%.2f。";
+"reclaude.summary_cookie" = "Cookie：%@";
+"reclaude.test_success_with_amount" = "已連線。$%.2f / $%.2f。";
+"reclaude.error.no_profile" = "沒有可繫結 reclaude 憑證的設定檔。";
+"popover.reclaude_title" = "Reclaude";
+"popover.reclaude_carpool" = "拼車";
+"menubar.reclaude" = "Reclaude";
+"notification.reclaude_warning.title" = "Reclaude 配額警示";
+"notification.reclaude_warning.message" = "拼車配額已達 %@。重設時間:%@。";
+"notification.reclaude_critical.title" = "Reclaude 配額緊急";
+"notification.reclaude_critical.message" = "拼車配額已達 %@。重設時間:%@。";
+"statusline.reclaude_label" = "Reclaude";
+"error.reclaude_not_configured" = "Reclaude 尚未設定";
+"error.reclaude_not_configured.suggestion" = "前往 設定 → Reclaude 登入以擷取 rc_sid cookie。";
+"error.reclaude_unauthorized" = "Reclaude Session 已過期";
+"error.reclaude_unauthorized.suggestion" = "前往 設定 → Reclaude 重新登入,或啟用自動續期。";
+"error.reclaude_invalid_response" = "reclaude.ai 回傳了非預期的回應";
+"error.reclaude_login_failed" = "登入 reclaude.ai 失敗";
+"error.reclaude_login_failed.suggestion" = "請在 設定 → Reclaude 中檢查電子郵件與密碼。";
+"error.reclaude_no_cookie" = "登入成功但未回傳 rc_sid cookie。";
+"error.reclaude_cooldown" = "自動續期處於冷卻中,請稍後再試。";
+"error.reclaude_cooldown.suggestion" = "登入失敗後請等候 5 分鐘,或手動重新輸入憑證。";
+"error.reclaude_no_profile" = "沒有作用中的設定檔。";
+"error.reclaude_generic" = "reclaude.ai 回傳了未知錯誤";
+"wizard.test_success" = "連線成功。";
+
+"common.or" = "或";
+
+// MARK: - Claude Code 狀態列 Reclaude 開關
+"claudecode.component_reclaude" = "Reclaude 拼車配額";
+"claudecode.component_reclaude_description" = "使用 App 寫入的快取顯示 reclaude.ai 5 小時 USD 配額。";
+"claudecode.component_reclaude_time_bar" = "顯示 5 小時時間進度條";
+"claudecode.component_reclaude_time_bar_description" = "第二條進度條,顯示目前 5 小時時段已經過多少。";
+"claudecode.reclaude_label" = "標籤";
+
+// MARK: - Reclaude 通知開關
+"notifications.reclaude_enable" = "啟用 Reclaude 提醒";
+"notifications.reclaude_enable.description" = "reclaude.ai 拼車 USD 花費跨越閾值時發送通知。";
+"notifications.reclaude_thresholds" = "Reclaude USD 閾值 (%)";

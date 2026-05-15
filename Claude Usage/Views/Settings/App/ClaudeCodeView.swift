@@ -33,6 +33,10 @@ struct ClaudeCodeView: View {
     @State private var showWeeklyResetTime: Bool = SharedDataStore.shared.loadStatuslineShowWeeklyResetTime()
     @State private var showWeeklyLabel: Bool = SharedDataStore.shared.loadStatuslineShowWeeklyLabel()
     @State private var showExtraUsage: Bool = SharedDataStore.shared.loadStatuslineShowExtraUsage()
+    @State private var showReclaude: Bool = SharedDataStore.shared.loadStatuslineShowReclaude()
+    @State private var showReclaudeBar: Bool = SharedDataStore.shared.loadStatuslineShowReclaudeBar()
+    @State private var showReclaudeTimeBar: Bool = SharedDataStore.shared.loadStatuslineShowReclaudeTimeBar()
+    @State private var reclaudeLabel: String = SharedDataStore.shared.loadStatuslineReclaudeLabel()
 
     // Appearance settings
     @State private var colorMode: StatuslineColorMode = SharedDataStore.shared.loadStatuslineColorMode()
@@ -346,11 +350,49 @@ struct ClaudeCodeView: View {
                                         }
                                     }
 
-                                    SettingToggle(
+                    SettingToggle(
                                         title: "claudecode.component_extra_usage".localized,
                                         description: "claudecode.component_extra_usage_description".localized,
                                         isOn: $showExtraUsage
                                     )
+
+                                    Divider()
+
+                                    // Reclaude carpool quota — surfaces RECLAUDE_USED_USD /
+                                    // RECLAUDE_QUOTA_USD / RECLAUDE_RESETS_AT_MS the app writes
+                                    // into `~/.claude/.statusline-usage-cache`.
+                                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                                        SettingToggle(
+                                            title: "claudecode.component_reclaude".localized,
+                                            description: "claudecode.component_reclaude_description".localized,
+                                            isOn: $showReclaude
+                                        )
+
+                                        if showReclaude {
+                                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+                                                SettingToggle(
+                                                    title: "claudecode.component_progressbar".localized,
+                                                    isOn: $showReclaudeBar
+                                                )
+
+                                                SettingToggle(
+                                                    title: "claudecode.component_reclaude_time_bar".localized,
+                                                    description: "claudecode.component_reclaude_time_bar_description".localized,
+                                                    isOn: $showReclaudeTimeBar
+                                                )
+
+                                                HStack(spacing: DesignTokens.Spacing.small) {
+                                                    Text("claudecode.reclaude_label".localized)
+                                                        .font(DesignTokens.Typography.body)
+                                                    Spacer()
+                                                    TextField("Reclaude", text: $reclaudeLabel)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .frame(maxWidth: 140)
+                                                }
+                                            }
+                                            .padding(.leading, DesignTokens.Spacing.cardPadding)
+                                        }
+                                    }
                                 }
                                 .padding(.leading, DesignTokens.Spacing.cardPadding)
                             }
@@ -853,7 +895,7 @@ struct ClaudeCodeView: View {
     /// Installs scripts, updates config file, and enables statusline in settings.json.
     private func applyConfiguration() {
         // Validate: at least one component must be selected
-        guard showModel || showDirectory || showBranch || showContext || showUsage || showProfile || showWeekly || showExtraUsage else {
+        guard showModel || showDirectory || showBranch || showContext || showUsage || showProfile || showWeekly || showExtraUsage || showReclaude else {
             statusMessage = "claudecode.error_no_components".localized
             isSuccess = false
             return
@@ -892,6 +934,10 @@ struct ClaudeCodeView: View {
         SharedDataStore.shared.saveStatuslineShowWeeklyResetTime(showWeeklyResetTime)
         SharedDataStore.shared.saveStatuslineShowWeeklyLabel(showWeeklyLabel)
         SharedDataStore.shared.saveStatuslineShowExtraUsage(showExtraUsage)
+        SharedDataStore.shared.saveStatuslineShowReclaude(showReclaude)
+        SharedDataStore.shared.saveStatuslineShowReclaudeBar(showReclaudeBar)
+        SharedDataStore.shared.saveStatuslineShowReclaudeTimeBar(showReclaudeTimeBar)
+        SharedDataStore.shared.saveStatuslineReclaudeLabel(reclaudeLabel)
 
         do {
             // Write configuration file
@@ -920,7 +966,11 @@ struct ClaudeCodeView: View {
                 showWeeklyPaceMarker: showWeeklyPaceMarker,
                 showWeeklyResetTime: showWeeklyResetTime,
                 showWeeklyLabel: showWeeklyLabel,
-                showExtraUsage: showExtraUsage
+                showExtraUsage: showExtraUsage,
+                showReclaudeUsage: showReclaude,
+                showReclaudeBar: showReclaudeBar,
+                showReclaudeTimeBar: showReclaudeTimeBar,
+                reclaudeLabel: reclaudeLabel.isEmpty ? "Reclaude" : reclaudeLabel
             )
 
             // Update Claude CLI settings.json

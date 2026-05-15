@@ -87,6 +87,15 @@ struct PopoverContentView: View {
         return manager.apiUsage
     }
 
+    /// Same isolation rule as `displayAPIUsage` — viewing a clicked profile
+    /// shows only that profile's reclaude data, not the active profile's.
+    private var displayReclaudeUsage: ReclaudeUsage? {
+        if manager.clickedProfileUsage != nil {
+            return manager.clickedProfileReclaudeUsage
+        }
+        return manager.reclaudeUsage
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -188,7 +197,7 @@ struct PopoverContentView: View {
             }
 
             // Usage
-            SmartUsageDashboard(usage: displayUsage, apiUsage: displayAPIUsage)
+            SmartUsageDashboard(usage: displayUsage, apiUsage: displayAPIUsage, reclaudeUsage: displayReclaudeUsage)
 
             // Contextual Insights
             if showInsights {
@@ -544,6 +553,7 @@ struct HeaderIconButton: View {
 struct SmartUsageDashboard: View {
     let usage: ClaudeUsage
     let apiUsage: APIUsage?
+    var reclaudeUsage: ReclaudeUsage? = nil
     @StateObject private var profileManager = ProfileManager.shared
     @ObservedObject private var peakHoursService = PeakHoursService.shared
 
@@ -583,37 +593,80 @@ struct SmartUsageDashboard: View {
         SharedDataStore.shared.loadPopoverTimeDisplay()
     }
 
+    /// When the active profile has live reclaude carpool data, the top two
+    /// rows are repurposed to show carpool USD progress + carpool 5h window
+    /// refresh — reclaude proxy accounts can't populate session/weekly
+    /// numbers anyway (no Anthropic rate_limits), so this turns dead 0% rows
+    /// into actionable info while reusing the existing UsageRow layout
+    /// verbatim (same colors, animation, time marker, reset-time row).
+    private var hasCarpoolReplacement: Bool {
+        reclaudeUsage?.isActive == true
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Primary: Session Usage
-            UsageRow(
-                title: "menubar.session_usage".localized,
-                subtitle: "menubar.5_hour_window".localized,
-                usedPercentage: usage.effectiveSessionPercentage,
-                showRemaining: showRemainingPercentage,
-                resetTime: usage.sessionResetTime,
-                periodDuration: Constants.sessionWindow,
-                showTimeMarker: showTimeMarker,
-                showPaceMarker: showPaceMarker,
-                usePaceColoring: usePaceColoring,
-                timeDisplay: timeDisplay,
-                isPeakHighlighted: isPeakHours
-            )
+            if hasCarpoolReplacement, let r = reclaudeUsage {
+                // Primary row: carpool USD spend
+                UsageRow(
+                    title: "menubar.carpool_usage".localized,
+                    subtitle: String(format: "$%.2f / $%.2f", r.usedUsd, r.quotaUsd),
+                    usedPercentage: Double(r.usdPercentage),
+                    showRemaining: showRemainingPercentage,
+                    resetTime: r.resetAt,
+                    periodDuration: ReclaudeUsage.windowDuration,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay,
+                    isPeakHighlighted: isPeakHours
+                )
 
-            // All Models (Weekly)
-            UsageRow(
-                title: "menubar.all_models".localized,
-                tag: "menubar.weekly".localized,
-                subtitle: nil,
-                usedPercentage: usage.weeklyPercentage,
-                showRemaining: showRemainingPercentage,
-                resetTime: usage.weeklyResetTime,
-                periodDuration: Constants.weeklyWindow,
-                showTimeMarker: showTimeMarker,
-                showPaceMarker: showPaceMarker,
-                usePaceColoring: usePaceColoring,
-                timeDisplay: timeDisplay
-            )
+                // Secondary row: carpool 5h-window elapsed (time bar, mirrors
+                // claude-hud's second progress bar but rendered through the
+                // existing UsageRow component for design parity).
+                UsageRow(
+                    title: "menubar.carpool_refresh".localized,
+                    subtitle: nil,
+                    usedPercentage: r.timeElapsedFraction * 100,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: r.resetAt,
+                    periodDuration: ReclaudeUsage.windowDuration,
+                    showTimeMarker: false,
+                    showPaceMarker: false,
+                    usePaceColoring: false,
+                    timeDisplay: timeDisplay
+                )
+            } else {
+                // Primary: Session Usage
+                UsageRow(
+                    title: "menubar.session_usage".localized,
+                    subtitle: "menubar.5_hour_window".localized,
+                    usedPercentage: usage.effectiveSessionPercentage,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: usage.sessionResetTime,
+                    periodDuration: Constants.sessionWindow,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay,
+                    isPeakHighlighted: isPeakHours
+                )
+
+                // All Models (Weekly)
+                UsageRow(
+                    title: "menubar.all_models".localized,
+                    tag: "menubar.weekly".localized,
+                    subtitle: nil,
+                    usedPercentage: usage.weeklyPercentage,
+                    showRemaining: showRemainingPercentage,
+                    resetTime: usage.weeklyResetTime,
+                    periodDuration: Constants.weeklyWindow,
+                    showTimeMarker: showTimeMarker,
+                    showPaceMarker: showPaceMarker,
+                    usePaceColoring: usePaceColoring,
+                    timeDisplay: timeDisplay
+                )
+            }
 
             if usage.opusWeeklyTokensUsed > 0 {
                 UsageRow(
@@ -674,9 +727,116 @@ struct SmartUsageDashboard: View {
                     APICostCard(apiUsage: apiUsage)
                 }
             }
+
+            // Bottom-of-dashboard ReclaudeUsageSection removed — when carpool
+            // data is active it now replaces the top two rows (see body
+            // start), so showing it again here would duplicate. When carpool
+            // data is inactive there's nothing useful to render either.
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Reclaude Usage Section
+struct ReclaudeUsageSection: View {
+    let usage: ReclaudeUsage
+    var showRemaining: Bool = false
+    var timeDisplay: PopoverTimeDisplay = .resetTime
+
+    private var displayPercentage: Int {
+        showRemaining ? max(0, 100 - usage.usdPercentage) : usage.usdPercentage
+    }
+
+    private var usageColor: Color {
+        let status = UsageStatusCalculator.calculateStatus(
+            usedPercentage: Double(usage.usdPercentage),
+            showRemaining: showRemaining
+        )
+        switch status {
+        case .safe: return .adaptiveGreen
+        case .moderate: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private var resetText: String? {
+        guard let reset = usage.resetAt, reset > Date() else { return nil }
+        // All three display modes share the same "Resets in …" string here,
+        // since the carpool window is short (5h) and the absolute time adds
+        // little value compared to the elapsed/remaining count.
+        return FormatterHelper.timeUntilReset(from: reset)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            // Header
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text("popover.reclaude_title".localized)
+                            .font(.system(size: 13, weight: .medium))
+                        Text("popover.reclaude_carpool".localized)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.secondary.opacity(0.12))
+                            )
+                    }
+                    Text(String(format: "$%.2f / $%.2f", usage.usedUsd, usage.quotaUsd))
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text("\(displayPercentage)%")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(usageColor)
+            }
+
+            // USD spend bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.18))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(usageColor)
+                        .frame(width: max(2, geo.size.width * CGFloat(usage.usdPercentage) / 100.0))
+                }
+            }
+            .frame(height: 4)
+
+            // 5-hour time window bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Color.secondary.opacity(0.14))
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Color.blue.opacity(0.5))
+                        .frame(width: max(1, geo.size.width * CGFloat(usage.timeElapsedFraction)))
+                }
+            }
+            .frame(height: 3)
+
+            // Reset countdown
+            if let text = resetText {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 8))
+                    Text(text)
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
     }
 }
 

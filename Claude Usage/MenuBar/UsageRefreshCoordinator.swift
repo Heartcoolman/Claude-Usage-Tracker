@@ -93,6 +93,35 @@ final class UsageRefreshCoordinator {
                     LoggingService.shared.logAPIError("fetchAPIUsageData", error: error)
                 }
             }
+
+            // Fetch reclaude.ai carpool quota if the active profile has rc_sid.
+            // `fetchWithAutoRefresh` is @MainActor — it owns ProfileManager
+            // reads/writes (including the cookie rotation on 401) so the
+            // refresh path stays serialized with the rest of profile state.
+            let reclaudeProfile = await MainActor.run { () -> (UUID, String, NotificationSettings)? in
+                guard let p = ProfileManager.shared.activeProfile, p.hasReclaude else { return nil }
+                return (p.id, p.name, p.notificationSettings)
+            }
+            if let (profileId, profileName, notifSettings) = reclaudeProfile {
+                do {
+                    let newReclaude = try await ReclaudeAPIService.shared.fetchWithAutoRefresh(profileId: profileId)
+                    await MainActor.run {
+                        DataStore.shared.saveReclaudeUsage(newReclaude)
+                        ProfileManager.shared.saveReclaudeUsage(newReclaude, for: profileId)
+                        delegate?.reclaudeUsageRefreshDidComplete(usage: newReclaude)
+                        NotificationManager.shared.checkAndNotify(
+                            reclaude: newReclaude,
+                            profileName: profileName,
+                            settings: notifSettings
+                        )
+                    }
+                } catch let err as AppError where err.code == .reclaudeCooldownActive {
+                    // Expected during the 5-min back-off after a failed login.
+                    LoggingService.shared.log("Reclaude refresh skipped — cooldown active")
+                } catch {
+                    LoggingService.shared.logAPIError("fetchReclaudeUsage", error: error)
+                }
+            }
         }
     }
 
@@ -132,4 +161,15 @@ protocol UsageRefreshCoordinatorDelegate: AnyObject {
     func usageRefreshDidComplete(usage: ClaudeUsage)
     func statusRefreshDidComplete(status: ClaudeStatus)
     func apiUsageRefreshDidComplete(apiUsage: APIUsage)
+    func reclaudeUsageRefreshDidComplete(usage: ReclaudeUsage)
+}
+
+// NOTE: as of writing, `UsageRefreshCoordinator` is not instantiated
+// anywhere — `MenuBarManager` runs its own inline refresh loop. If you
+// wire this coordinator up, the adopter MUST repaint the menu bar icons
+// inside `reclaudeUsageRefreshDidComplete` (the session icon repurposes
+// reclaude USD% when the carpool is active), otherwise the icon will go
+// stale on reclaude-only changes.
+extension UsageRefreshCoordinatorDelegate {
+    func reclaudeUsageRefreshDidComplete(usage: ReclaudeUsage) {}
 }

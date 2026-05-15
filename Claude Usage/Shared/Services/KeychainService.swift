@@ -164,6 +164,113 @@ class KeychainService {
         return status == errSecSuccess
     }
 
+    // MARK: - Reclaude Password (Per-Profile)
+    //
+    // Stored under service `com.claudeusagetracker.reclaude-password` with
+    // `account = profile.id.uuidString` so each profile gets an isolated
+    // Keychain entry. Used by ReclaudeAPIService for auto-relogin when the
+    // `rc_sid` cookie expires.
+
+    private static let reclaudePasswordService = "com.claudeusagetracker.reclaude-password"
+
+    func saveReclaudePassword(_ password: String, profileId: UUID) throws {
+        try saveRaw(password,
+                    service: Self.reclaudePasswordService,
+                    account: profileId.uuidString)
+    }
+
+    func loadReclaudePassword(profileId: UUID) throws -> String? {
+        try loadRaw(service: Self.reclaudePasswordService,
+                    account: profileId.uuidString)
+    }
+
+    func deleteReclaudePassword(profileId: UUID) throws {
+        try deleteRaw(service: Self.reclaudePasswordService,
+                      account: profileId.uuidString)
+    }
+
+    // MARK: - Parametric Helpers
+    //
+    // The original `KeychainKey` enum encodes service+account at compile time,
+    // which doesn't fit per-profile (UUID-keyed) entries. These mirror the
+    // enum-based save/load/delete semantics with explicit service+account.
+
+    private func saveRaw(_ value: String, service: String, account: String) throws {
+        guard let data = value.data(using: .utf8) else {
+            throw KeychainError.invalidData
+        }
+
+        let updateQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [kSecValueData as String: data]
+        let updateStatus = SecItemUpdate(updateQuery as CFDictionary, attributes as CFDictionary)
+
+        if updateStatus == errSecSuccess {
+            LoggingService.shared.log("Keychain: Updated \(service)/\(account)")
+            return
+        }
+
+        if updateStatus == errSecItemNotFound {
+            // Use the plain `kSecAttrAccessible` accessibility constant instead
+            // of an empty-flag `SecAccessControlCreateWithFlags` ACL object.
+            // The latter requires `keychain-access-groups` entitlements on
+            // ad-hoc / "Sign to Run Locally" signed Debug builds and otherwise
+            // fails with errSecMissingEntitlement (-34018). Functionally
+            // equivalent — both gate access to "device is unlocked".
+            let addQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+                kSecAttrSynchronizable as String: false
+            ]
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus == errSecSuccess {
+                LoggingService.shared.log("Keychain: Added \(service)/\(account)")
+                return
+            }
+            throw KeychainError.saveFailed(status: addStatus)
+        }
+
+        throw KeychainError.saveFailed(status: updateStatus)
+    }
+
+    private func loadRaw(service: String, account: String) throws -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess {
+            guard let data = result as? Data,
+                  let value = String(data: data, encoding: .utf8) else {
+                throw KeychainError.invalidData
+            }
+            return value
+        }
+        if status == errSecItemNotFound { return nil }
+        throw KeychainError.loadFailed(status: status)
+    }
+
+    private func deleteRaw(service: String, account: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        if status == errSecSuccess || status == errSecItemNotFound { return }
+        throw KeychainError.deleteFailed(status: status)
+    }
+
 }
 
 // MARK: - KeychainError

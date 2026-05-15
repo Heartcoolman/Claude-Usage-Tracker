@@ -35,6 +35,30 @@ struct Profile: Codable, Identifiable, Equatable {
     // MARK: - Usage Data (Per-Profile)
     var claudeUsage: ClaudeUsage?
     var apiUsage: APIUsage?
+    var reclaudeUsage: ReclaudeUsage?
+
+    // MARK: - Reclaude.ai Credentials (Per-Profile)
+    /// Current `rc_sid` session cookie value extracted from reclaude.ai. The
+    /// password (if `reclaudeAutoRefresh == true`) lives in macOS Keychain
+    /// under service `com.claudeusagetracker.reclaude-password`, account = profile UUID.
+    var reclaudeSessionCookie: String?
+    var reclaudeEmail: String?
+    /// Optional in storage so legacy v3 profiles missing this key still decode.
+    /// Read via the `reclaudeAutoRefreshEnabled` computed property.
+    var reclaudeAutoRefresh: Bool?
+    /// Full carpool-quota URL. Mirrors claude-hud's `display.reclaude.apiUrl`:
+    /// the user pastes a complete URL (typically `…/carpool-quota?org_id=<id>`)
+    /// and the fetcher uses it verbatim. `nil` means fall back to the bare
+    /// default in `Constants.APIEndpoints.reclaudeCarpoolQuota`.
+    var reclaudeApiUrl: String?
+    /// When set in the future, suppress re-login attempts until then (5-minute
+    /// cooldown after a failed `/api/auth/login`, mirrors claude-hud).
+    var reclaudePasswordCooldownUntil: Date?
+
+    /// Normalized read for `reclaudeAutoRefresh` (defaults to false).
+    var reclaudeAutoRefreshEnabled: Bool {
+        reclaudeAutoRefresh ?? false
+    }
 
     // MARK: - Appearance Settings (Per-Profile)
     var iconConfig: MenuBarIconConfiguration
@@ -68,6 +92,12 @@ struct Profile: Codable, Identifiable, Equatable {
         oauthAccountJSON: String? = nil,
         claudeUsage: ClaudeUsage? = nil,
         apiUsage: APIUsage? = nil,
+        reclaudeUsage: ReclaudeUsage? = nil,
+        reclaudeSessionCookie: String? = nil,
+        reclaudeEmail: String? = nil,
+        reclaudeAutoRefresh: Bool? = nil,
+        reclaudeApiUrl: String? = nil,
+        reclaudePasswordCooldownUntil: Date? = nil,
         iconConfig: MenuBarIconConfiguration = .default,
         refreshInterval: TimeInterval = 30.0,
         autoStartSessionEnabled: Bool = false,
@@ -90,6 +120,12 @@ struct Profile: Codable, Identifiable, Equatable {
         self.oauthAccountJSON = oauthAccountJSON
         self.claudeUsage = claudeUsage
         self.apiUsage = apiUsage
+        self.reclaudeUsage = reclaudeUsage
+        self.reclaudeSessionCookie = reclaudeSessionCookie
+        self.reclaudeEmail = reclaudeEmail
+        self.reclaudeAutoRefresh = reclaudeAutoRefresh
+        self.reclaudeApiUrl = reclaudeApiUrl
+        self.reclaudePasswordCooldownUntil = reclaudePasswordCooldownUntil
         self.iconConfig = iconConfig
         self.refreshInterval = refreshInterval
         self.autoStartSessionEnabled = autoStartSessionEnabled
@@ -109,10 +145,12 @@ struct Profile: Codable, Identifiable, Equatable {
         apiSessionKey != nil && apiOrganizationId != nil
     }
 
-    /// True if profile has credentials that can fetch usage data (Claude.ai, CLI OAuth, or API Console)
-    /// Note: System keychain fallback is handled in ClaudeAPIService.getAuthentication() during actual API calls
+    /// True if profile has credentials that can fetch usage data (Claude.ai, CLI OAuth, API Console, or reclaude carpool)
+    /// Note: System keychain fallback is handled in ClaudeAPIService.getAuthentication() during actual API calls.
+    /// `hasReclaude` is included so reclaude-only profiles (carpool proxy account, no Anthropic creds) still render
+    /// the menu bar icon — the renderer / popover repurpose the session metric onto carpool USD data in that case.
     var hasUsageCredentials: Bool {
-        hasClaudeAI || hasAPIConsole || hasValidCLIOAuth
+        hasClaudeAI || hasAPIConsole || hasValidCLIOAuth || hasReclaude
     }
 
     /// True if profile has CLI OAuth credentials that are not expired
@@ -122,7 +160,12 @@ struct Profile: Codable, Identifiable, Equatable {
     }
 
     var hasAnyCredentials: Bool {
-        hasClaudeAI || hasAPIConsole || cliCredentialsJSON != nil
+        hasClaudeAI || hasAPIConsole || cliCredentialsJSON != nil || hasReclaude
+    }
+
+    /// True when a reclaude.ai session cookie is configured for this profile.
+    var hasReclaude: Bool {
+        !(reclaudeSessionCookie?.isEmpty ?? true)
     }
 }
 
@@ -136,6 +179,13 @@ struct ProfileCredentials {
     var apiSessionKeyExpiry: Date?
     var cliCredentialsJSON: String?
 
+    // Reclaude.ai
+    var reclaudeSessionCookie: String?
+    var reclaudeEmail: String?
+    var reclaudeAutoRefresh: Bool = false
+    /// Full carpool-quota URL override (e.g. `…?org_id=2323`). `nil` → default.
+    var reclaudeApiUrl: String?
+
     var hasClaudeAI: Bool {
         claudeSessionKey != nil && organizationId != nil
     }
@@ -146,5 +196,9 @@ struct ProfileCredentials {
 
     var hasCLI: Bool {
         cliCredentialsJSON != nil
+    }
+
+    var hasReclaude: Bool {
+        !(reclaudeSessionCookie?.isEmpty ?? true)
     }
 }

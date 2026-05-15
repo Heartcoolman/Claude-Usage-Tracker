@@ -9,6 +9,7 @@ class MenuBarManager: NSObject, ObservableObject {
     @Published private(set) var usage: ClaudeUsage = .empty
     @Published private(set) var status: ClaudeStatus = .unknown
     @Published private(set) var apiUsage: APIUsage?
+    @Published private(set) var reclaudeUsage: ReclaudeUsage?
     @Published private(set) var isRefreshing: Bool = false
 
     // Error tracking for stale data / credential banners
@@ -21,6 +22,7 @@ class MenuBarManager: NSObject, ObservableObject {
     @Published private(set) var clickedProfileId: UUID?
     @Published private(set) var clickedProfileUsage: ClaudeUsage?
     @Published private(set) var clickedProfileAPIUsage: APIUsage?
+    @Published private(set) var clickedProfileReclaudeUsage: ReclaudeUsage?
 
     // Track when refresh was last triggered (for distinguishing user vs auto refresh)
     private var lastRefreshTriggerTime: Date = .distantPast
@@ -163,10 +165,14 @@ class MenuBarManager: NSObject, ObservableObject {
                 if let savedAPIUsage = profile.apiUsage {
                     apiUsage = savedAPIUsage
                 }
+                if let savedReclaude = profile.reclaudeUsage {
+                    reclaudeUsage = savedReclaude
+                }
             } else {
                 // No credentials anywhere - clear any old usage data and show default logo
                 usage = .empty
                 apiUsage = nil
+                reclaudeUsage = nil
                 LoggingService.shared.log("MenuBarManager: No credentials available (profile or system keychain), showing default logo")
             }
             updateAllStatusBarIcons()
@@ -376,6 +382,12 @@ class MenuBarManager: NSObject, ObservableObject {
             } else {
                 self.apiUsage = nil
             }
+
+            if let savedReclaude = profile.reclaudeUsage {
+                self.reclaudeUsage = savedReclaude
+            } else {
+                self.reclaudeUsage = nil
+            }
         }
 
         // 2. Update refresh interval with profile's setting
@@ -534,12 +546,14 @@ class MenuBarManager: NSObject, ObservableObject {
             clickedProfileId = profileId
             clickedProfileUsage = profile.claudeUsage ?? .empty
             clickedProfileAPIUsage = profile.apiUsage
+            clickedProfileReclaudeUsage = profile.reclaudeUsage
             LoggingService.shared.log("Multi-profile popover: showing data for '\(profile.name)'")
         } else {
             // Single profile mode - use active profile
             clickedProfileId = profileManager.activeProfile?.id
             clickedProfileUsage = nil  // Will use manager.usage
             clickedProfileAPIUsage = nil  // Will use manager.apiUsage
+            clickedProfileReclaudeUsage = nil  // Will use manager.reclaudeUsage
         }
 
         // If there's a detached window, close it
@@ -691,7 +705,8 @@ class MenuBarManager: NSObject, ObservableObject {
             // Single profile mode - use the standard update
             statusBarUIManager?.updateAllButtons(
                 usage: usage,
-                apiUsage: apiUsage
+                apiUsage: apiUsage,
+                reclaudeUsage: reclaudeUsage
             )
         }
     }
@@ -701,7 +716,8 @@ class MenuBarManager: NSObject, ObservableObject {
         statusBarUIManager?.updateButton(
             for: metricType,
             usage: usage,
-            apiUsage: apiUsage
+            apiUsage: apiUsage,
+            reclaudeUsage: reclaudeUsage
         )
     }
 
@@ -1079,6 +1095,7 @@ class MenuBarManager: NSObject, ObservableObject {
                             if StatuslineService.shared.isInstalled {
                                 StatuslineService.shared.writeUsageCache(
                                     usage: newUsage,
+                                    reclaude: self.reclaudeUsage,
                                     profileName: profile.name
                                 )
                             }
@@ -1281,6 +1298,7 @@ class MenuBarManager: NSObject, ObservableObject {
                     if StatuslineService.shared.isInstalled {
                         StatuslineService.shared.writeUsageCache(
                             usage: newUsage,
+                            reclaude: self.reclaudeUsage,
                             profileName: self.profileManager.activeProfile?.name
                         )
                     }
@@ -1322,6 +1340,17 @@ class MenuBarManager: NSObject, ObservableObject {
 
                 // Track error state for UI banners
                 await MainActor.run {
+                    // `cliAccountIsReclaudeProxy` is a soft warning — the
+                    // active profile only has a `sk-rec-*` proxy token, so we
+                    // can't query Anthropic Messages API but reclaude data is
+                    // still working. Log it but don't trip the modal/banner
+                    // machinery (no failure counter, no credential-error
+                    // banner, no NSAlert popup every refresh).
+                    if appError.code == .cliAccountIsReclaudeProxy {
+                        LoggingService.shared.log("MenuBarManager: CLI account is a reclaude proxy token — Anthropic Messages API skipped (\(appError.code.rawValue))")
+                        return
+                    }
+
                     self.consecutiveRefreshFailures += 1
                     self.lastRefreshError = appError.message
 
@@ -1385,6 +1414,50 @@ class MenuBarManager: NSObject, ObservableObject {
                     ErrorLogger.shared.log(appError, severity: .info)
 
                     LoggingService.shared.log("MenuBarManager: Failed to fetch API usage - [\(appError.code.rawValue)] \(appError.message)")
+                }
+            }
+
+            // Fetch reclaude.ai carpool quota (active profile only). The
+            // ReclaudeAPIService.fetchWithAutoRefresh is @MainActor — it owns
+            // ProfileManager reads/writes (including the cookie rotation on
+            // 401) so the refresh path stays serialized with profile state.
+            let reclaudeContext = await MainActor.run { () -> (UUID, String, NotificationSettings)? in
+                guard let p = self.profileManager.activeProfile, p.hasReclaude else { return nil }
+                return (p.id, p.name, p.notificationSettings)
+            }
+            if let (profileId, profileName, notifSettings) = reclaudeContext {
+                do {
+                    let newReclaude = try await ReclaudeAPIService.shared.fetchWithAutoRefresh(profileId: profileId)
+                    await MainActor.run {
+                        self.reclaudeUsage = newReclaude
+                        DataStore.shared.saveReclaudeUsage(newReclaude)
+                        self.profileManager.saveReclaudeUsage(newReclaude, for: profileId)
+                        NotificationManager.shared.checkAndNotify(
+                            reclaude: newReclaude,
+                            profileName: profileName,
+                            settings: notifSettings
+                        )
+                        // Refresh statusline cache so the new reclaude snapshot
+                        // is visible to the terminal renderer immediately.
+                        if StatuslineService.shared.isInstalled {
+                            StatuslineService.shared.writeUsageCache(
+                                usage: self.usage,
+                                reclaude: newReclaude,
+                                profileName: profileName
+                            )
+                        }
+                        // Repaint menu bar icons — the session icon repurposes
+                        // reclaude USD% when the carpool is active, and only
+                        // `usage` updates triggered a redraw before, leaving the
+                        // icon stale until any config toggle forced a rerender.
+                        self.updateAllStatusBarIcons()
+                    }
+                } catch let err as AppError where err.code == .reclaudeCooldownActive {
+                    LoggingService.shared.log("Reclaude refresh skipped — cooldown active")
+                } catch {
+                    let appError = AppError.wrap(error)
+                    ErrorLogger.shared.log(appError, severity: .info)
+                    LoggingService.shared.log("MenuBarManager: Failed to fetch Reclaude usage - [\(appError.code.rawValue)] \(appError.message)")
                 }
             }
 

@@ -12,6 +12,7 @@ enum MenuBarMetricType: String, Codable, CaseIterable, Identifiable {
     case session
     case week
     case api
+    case reclaude
 
     var id: String { rawValue }
 
@@ -23,6 +24,8 @@ enum MenuBarMetricType: String, Codable, CaseIterable, Identifiable {
             return "Week Usage"
         case .api:
             return "API Credits"
+        case .reclaude:
+            return "Reclaude Carpool"
         }
     }
 
@@ -34,6 +37,8 @@ enum MenuBarMetricType: String, Codable, CaseIterable, Identifiable {
             return "W:"
         case .api:
             return "API:"
+        case .reclaude:
+            return "RC:"
         }
     }
 
@@ -45,6 +50,8 @@ enum MenuBarMetricType: String, Codable, CaseIterable, Identifiable {
             return "Weekly token usage (all models)"
         case .api:
             return "API Console billing credits"
+        case .reclaude:
+            return "reclaude.ai carpool 5-hour USD quota"
         }
     }
 
@@ -56,6 +63,31 @@ enum MenuBarMetricType: String, Codable, CaseIterable, Identifiable {
             return "calendar.badge.clock"
         case .api:
             return "dollarsign.circle.fill"
+        case .reclaude:
+            return "car.fill"
+        }
+    }
+}
+
+/// Display mode for reclaude.ai metric icon (text-only).
+enum ReclaudeDisplayMode: String, Codable, CaseIterable {
+    case percentage
+    case dollarsUsed
+    case dollarsRemaining
+
+    var displayName: String {
+        switch self {
+        case .percentage:        return "Percentage"
+        case .dollarsUsed:       return "Dollars Used"
+        case .dollarsRemaining:  return "Dollars Remaining"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .percentage:        return "Show USD spend as percentage (e.g., 32%)"
+        case .dollarsUsed:       return "Show dollars spent (e.g., $1.60)"
+        case .dollarsRemaining:  return "Show dollars left in window (e.g., $3.40)"
         }
     }
 }
@@ -169,6 +201,14 @@ struct MetricIconConfig: Codable, Equatable {
     /// Session-specific configuration
     var showNextSessionTime: Bool
 
+    /// Reclaude-specific configuration (optional in storage for backwards compat)
+    var reclaudeDisplayMode: ReclaudeDisplayMode?
+
+    /// Normalized read for `reclaudeDisplayMode` (defaults to `.percentage`).
+    var resolvedReclaudeDisplayMode: ReclaudeDisplayMode {
+        reclaudeDisplayMode ?? .percentage
+    }
+
     init(
         metricType: MenuBarMetricType,
         isEnabled: Bool = false,
@@ -176,7 +216,8 @@ struct MetricIconConfig: Codable, Equatable {
         order: Int = 0,
         weekDisplayMode: WeekDisplayMode = .percentage,
         apiDisplayMode: APIDisplayMode = .remaining,
-        showNextSessionTime: Bool = false
+        showNextSessionTime: Bool = false,
+        reclaudeDisplayMode: ReclaudeDisplayMode? = nil
     ) {
         self.metricType = metricType
         self.isEnabled = isEnabled
@@ -185,6 +226,7 @@ struct MetricIconConfig: Codable, Equatable {
         self.weekDisplayMode = weekDisplayMode
         self.apiDisplayMode = apiDisplayMode
         self.showNextSessionTime = showNextSessionTime
+        self.reclaudeDisplayMode = reclaudeDisplayMode
     }
 
     /// Default config for session (enabled by default)
@@ -217,6 +259,17 @@ struct MetricIconConfig: Codable, Equatable {
             iconStyle: .battery,
             order: 2,
             apiDisplayMode: .remaining
+        )
+    }
+
+    /// Default config for Reclaude (disabled by default)
+    static var reclaudeDefault: MetricIconConfig {
+        MetricIconConfig(
+            metricType: .reclaude,
+            isEnabled: false,
+            iconStyle: .percentageOnly,
+            order: 3,
+            reclaudeDisplayMode: .percentage
         )
     }
 }
@@ -372,7 +425,8 @@ struct MenuBarIconConfiguration: Codable, Equatable {
         metrics: [MetricIconConfig] = [
             .sessionDefault,
             .weekDefault,
-            .apiDefault
+            .apiDefault,
+            .reclaudeDefault
         ]
     ) {
         self.colorMode = colorMode
@@ -415,7 +469,12 @@ struct MenuBarIconConfiguration: Codable, Equatable {
         showTimeMarker = try container.decodeIfPresent(Bool.self, forKey: .showTimeMarker) ?? true
         showPaceMarker = try container.decodeIfPresent(Bool.self, forKey: .showPaceMarker) ?? false
         usePaceColoring = try container.decodeIfPresent(Bool.self, forKey: .usePaceColoring) ?? false
-        metrics = try container.decode([MetricIconConfig].self, forKey: .metrics)
+        var decodedMetrics = try container.decode([MetricIconConfig].self, forKey: .metrics)
+        // Migrate: append reclaude config if existing data predates the metric.
+        if !decodedMetrics.contains(where: { $0.metricType == .reclaude }) {
+            decodedMetrics.append(.reclaudeDefault)
+        }
+        metrics = decodedMetrics
     }
 
     func encode(to encoder: Encoder) throws {

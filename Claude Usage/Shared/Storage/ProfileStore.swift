@@ -125,6 +125,12 @@ class ProfileStore {
         profiles[index].apiOrganizationId = credentials.apiOrganizationId
         profiles[index].cliCredentialsJSON = credentials.cliCredentialsJSON
 
+        // Reclaude.ai mirror — password lives in Keychain (see KeychainService).
+        profiles[index].reclaudeSessionCookie = credentials.reclaudeSessionCookie
+        profiles[index].reclaudeEmail = credentials.reclaudeEmail
+        profiles[index].reclaudeAutoRefresh = credentials.reclaudeAutoRefresh
+        profiles[index].reclaudeApiUrl = credentials.reclaudeApiUrl
+
         saveProfiles(profiles)
     }
 
@@ -139,7 +145,11 @@ class ProfileStore {
             organizationId: profile.organizationId,
             apiSessionKey: profile.apiSessionKey,
             apiOrganizationId: profile.apiOrganizationId,
-            cliCredentialsJSON: profile.cliCredentialsJSON
+            cliCredentialsJSON: profile.cliCredentialsJSON,
+            reclaudeSessionCookie: profile.reclaudeSessionCookie,
+            reclaudeEmail: profile.reclaudeEmail,
+            reclaudeAutoRefresh: profile.reclaudeAutoRefreshEnabled,
+            reclaudeApiUrl: profile.reclaudeApiUrl
         )
     }
 }

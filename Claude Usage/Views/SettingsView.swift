@@ -268,6 +268,8 @@ struct SettingsView: View {
                     APIBillingView()
                 case .cliAccount:
                     CLIAccountView()
+                case .reclaude:
+                    ReclaudeView()
 
                 // Profile Settings
                 case .appearance:
@@ -523,6 +525,7 @@ enum SettingsSection: String, CaseIterable {
     case claudeAI
     case apiConsole
     case cliAccount
+    case reclaude
 
     // Profile Settings
     case appearance
@@ -547,6 +550,7 @@ enum SettingsSection: String, CaseIterable {
         case .claudeAI: return "section.claudeai_title".localized
         case .apiConsole: return "section.api_console_title".localized
         case .cliAccount: return "section.cli_account_title".localized
+        case .reclaude: return "section.reclaude_title".localized
         case .appearance: return "section.appearance_title".localized
         case .general: return "section.general_title".localized
         case .history: return "section.history_title".localized
@@ -569,6 +573,7 @@ enum SettingsSection: String, CaseIterable {
         case .claudeAI: return "key.fill"
         case .apiConsole: return "dollarsign.circle.fill"
         case .cliAccount: return "terminal.fill"
+        case .reclaude: return "car.fill"
         case .appearance: return "paintbrush.fill"
         case .general: return "gearshape.fill"
         case .history: return "chart.bar.xaxis"
@@ -591,6 +596,7 @@ enum SettingsSection: String, CaseIterable {
         case .claudeAI: return "section.claudeai_desc".localized
         case .apiConsole: return "section.api_console_desc".localized
         case .cliAccount: return "section.cli_account_desc".localized
+        case .reclaude: return "section.reclaude_desc".localized
         case .appearance: return "section.appearance_desc".localized
         case .general: return "section.general_desc".localized
         case .history: return "section.history_desc".localized
@@ -619,7 +625,7 @@ enum SettingsSection: String, CaseIterable {
 
     var isCredential: Bool {
         switch self {
-        case .claudeAI, .apiConsole, .cliAccount:
+        case .claudeAI, .apiConsole, .cliAccount, .reclaude:
             return true
         default:
             return false
@@ -731,6 +737,19 @@ struct ProfileCredentialCardsRow: View {
                     title: "CLI Account",
                     isConnected: profileManager.activeProfile?.hasCliAccount ?? false,
                     isSelected: selectedSection == .cliAccount
+                )
+            }
+            .buttonStyle(.plain)
+
+            // Reclaude Card
+            Button {
+                selectedSection = .reclaude
+            } label: {
+                CredentialMiniCard(
+                    icon: "car.fill",
+                    title: "Reclaude",
+                    isConnected: credentials?.hasReclaude ?? false,
+                    isSelected: selectedSection == .reclaude
                 )
             }
             .buttonStyle(.plain)

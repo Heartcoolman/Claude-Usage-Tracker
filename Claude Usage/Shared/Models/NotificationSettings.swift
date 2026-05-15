@@ -16,6 +16,10 @@ struct NotificationSettings: Codable, Equatable {
     var soundName: String
     var customThresholds: [Int]
 
+    // Reclaude.ai-specific notifications (independent thresholds per user decision)
+    var reclaudeEnabled: Bool
+    var reclaudeThresholds: [Int]
+
     /// All active thresholds (built-in + custom), sorted ascending
     var sortedThresholds: [Int] {
         var thresholds: [Int] = []
@@ -24,6 +28,11 @@ struct NotificationSettings: Codable, Equatable {
         if threshold95Enabled { thresholds.append(95) }
         thresholds.append(contentsOf: customThresholds)
         return Array(Set(thresholds)).sorted()
+    }
+
+    /// Reclaude USD% thresholds — independent of session/weekly defaults.
+    var sortedReclaudeThresholds: [Int] {
+        Array(Set(reclaudeThresholds)).sorted()
     }
 
     /// Resolved notification sound based on soundName
@@ -44,7 +53,9 @@ struct NotificationSettings: Codable, Equatable {
         threshold90Enabled: Bool = true,
         threshold95Enabled: Bool = true,
         soundName: String = "default",
-        customThresholds: [Int] = []
+        customThresholds: [Int] = [],
+        reclaudeEnabled: Bool = true,
+        reclaudeThresholds: [Int] = [75, 90, 95]
     ) {
         self.enabled = enabled
         self.threshold75Enabled = threshold75Enabled
@@ -52,6 +63,8 @@ struct NotificationSettings: Codable, Equatable {
         self.threshold95Enabled = threshold95Enabled
         self.soundName = soundName
         self.customThresholds = customThresholds
+        self.reclaudeEnabled = reclaudeEnabled
+        self.reclaudeThresholds = reclaudeThresholds
     }
 
     // Backwards-compatible decoding for existing saved settings
@@ -63,5 +76,7 @@ struct NotificationSettings: Codable, Equatable {
         threshold95Enabled = try container.decode(Bool.self, forKey: .threshold95Enabled)
         soundName = try container.decodeIfPresent(String.self, forKey: .soundName) ?? "default"
         customThresholds = try container.decodeIfPresent([Int].self, forKey: .customThresholds) ?? []
+        reclaudeEnabled = try container.decodeIfPresent(Bool.self, forKey: .reclaudeEnabled) ?? true
+        reclaudeThresholds = try container.decodeIfPresent([Int].self, forKey: .reclaudeThresholds) ?? [75, 90, 95]
     }
 }

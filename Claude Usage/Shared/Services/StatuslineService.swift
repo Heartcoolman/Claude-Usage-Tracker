@@ -140,6 +140,11 @@ if [ -f "$config_file" ]; then
   show_weekly_reset=$SHOW_WEEKLY_RESET_TIME
   show_weekly_label=$SHOW_WEEKLY_LABEL
   show_extra_usage=$SHOW_EXTRA_USAGE
+  show_reclaude=$SHOW_RECLAUDE_USAGE
+  show_reclaude_bar=$SHOW_RECLAUDE_BAR
+  show_reclaude_time_bar=$SHOW_RECLAUDE_TIME_BAR
+  reclaude_label="$RECLAUDE_LABEL"
+  element_color_reclaude=$ELEMENT_COLOR_RECLAUDE
   element_color_dir=$ELEMENT_COLOR_DIR
   element_color_branch=$ELEMENT_COLOR_BRANCH
   element_color_model=$ELEMENT_COLOR_MODEL
@@ -175,6 +180,11 @@ else
   show_weekly_reset=1
   show_weekly_label=1
   show_extra_usage=0
+  show_reclaude=0
+  show_reclaude_bar=1
+  show_reclaude_time_bar=0
+  reclaude_label="Reclaude"
+  element_color_reclaude=""
   element_color_dir="#0000EE"
   element_color_branch="#00BB00"
   element_color_model="#BBBB00"
@@ -778,6 +788,87 @@ if [ "$show_extra_usage" = "1" ] && [ "$show_usage" = "1" ]; then
   fi
 fi
 
+reclaude_text=""
+if [ "$show_reclaude" = "1" ]; then
+  cache_file="$HOME/.claude/.statusline-usage-cache"
+  rc_used=""
+  rc_quota=""
+  rc_resets_ms=""
+  rc_status=""
+  if [ -f "$cache_file" ]; then
+    cache_ts=$(grep "^TIMESTAMP=" "$cache_file" 2>/dev/null | cut -d= -f2)
+    now_ts=$(date +%s)
+    if [ -n "$cache_ts" ]; then
+      cache_age=$((now_ts - cache_ts))
+      if [ "$cache_age" -lt 300 ]; then
+        rc_used=$(grep "^RECLAUDE_USED_USD=" "$cache_file" | cut -d= -f2)
+        rc_quota=$(grep "^RECLAUDE_QUOTA_USD=" "$cache_file" | cut -d= -f2)
+        rc_resets_ms=$(grep "^RECLAUDE_RESETS_AT_MS=" "$cache_file" | cut -d= -f2)
+        rc_status=$(grep "^RECLAUDE_STATUS=" "$cache_file" | cut -d= -f2)
+      fi
+    fi
+  fi
+
+  if [ -n "$rc_used" ] && [ -n "$rc_quota" ] && [ "$rc_status" = "active" ]; then
+    # USD spend percentage, clamped 0..100
+    rc_pct=$(awk -v u="$rc_used" -v q="$rc_quota" 'BEGIN { if (q+0 > 0) { p = int(u/q*100); if (p>100) p=100; if (p<0) p=0; print p } else { print 0 } }')
+
+    # Colour tier (same 10-level gradient as weekly/cost)
+    if   [ "$rc_pct" -le 10 ]; then rc_color="$LEVEL_1"
+    elif [ "$rc_pct" -le 20 ]; then rc_color="$LEVEL_2"
+    elif [ "$rc_pct" -le 30 ]; then rc_color="$LEVEL_3"
+    elif [ "$rc_pct" -le 40 ]; then rc_color="$LEVEL_4"
+    elif [ "$rc_pct" -le 50 ]; then rc_color="$LEVEL_5"
+    elif [ "$rc_pct" -le 60 ]; then rc_color="$LEVEL_6"
+    elif [ "$rc_pct" -le 70 ]; then rc_color="$LEVEL_7"
+    elif [ "$rc_pct" -le 80 ]; then rc_color="$LEVEL_8"
+    elif [ "$rc_pct" -le 90 ]; then rc_color="$LEVEL_9"
+    else rc_color="$LEVEL_10"
+    fi
+    # Per-element override
+    if [ "$color_mode" = "perElement" ] && [ -n "$element_color_reclaude" ]; then
+      rc_color=$(hex_to_ansi "$element_color_reclaude")
+    fi
+
+    # Optional 10-cell USD progress bar
+    rc_bar=""
+    if [ "$show_reclaude_bar" = "1" ]; then
+      filled=$((rc_pct / 10))
+      [ "$filled" -gt 10 ] && filled=10
+      [ "$filled" -lt 0 ] && filled=0
+      empty=$((10 - filled))
+      rc_bar=" "
+      i=0
+      while [ "$i" -lt "$filled" ]; do rc_bar="${rc_bar}▓"; i=$((i+1)); done
+      i=0
+      while [ "$i" -lt "$empty" ]; do rc_bar="${rc_bar}░"; i=$((i+1)); done
+    fi
+
+    # Optional 5-hour time-window bar (▓▓░░░ with elapsed shown filled)
+    rc_time_bar=""
+    if [ "$show_reclaude_time_bar" = "1" ] && [ -n "$rc_resets_ms" ]; then
+      rc_reset_epoch=$((rc_resets_ms / 1000))
+      now_epoch=$(date +%s)
+      elapsed_sec=$((18000 - (rc_reset_epoch - now_epoch)))
+      if [ "$elapsed_sec" -gt 0 ] && [ "$elapsed_sec" -lt 18000 ]; then
+        # 10-cell time bar
+        t_filled=$(((elapsed_sec * 10 + 9000) / 18000))
+        [ "$t_filled" -gt 10 ] && t_filled=10
+        [ "$t_filled" -lt 0 ] && t_filled=0
+        t_empty=$((10 - t_filled))
+        rc_time_bar=" "
+        i=0
+        while [ "$i" -lt "$t_filled" ]; do rc_time_bar="${rc_time_bar}▓"; i=$((i+1)); done
+        i=0
+        while [ "$i" -lt "$t_empty" ]; do rc_time_bar="${rc_time_bar}░"; i=$((i+1)); done
+      fi
+    fi
+
+    label_str="${reclaude_label:-Reclaude}"
+    reclaude_text="${rc_color}${label_str}: \\$${rc_used}/\\$${rc_quota} (${rc_pct}%)${rc_bar}${rc_time_bar}${RESET}"
+  fi
+fi
+
 output=""
 separator="${GRAY} │ ${RESET}"
 
@@ -825,6 +916,12 @@ fi
 if [ -n "$extra_usage_text" ]; then
   [ -n "$output" ] && output="${output}${separator}"
   output="${output}${extra_usage_text}"
+fi
+
+# Then reclaude carpool quota
+if [ -n "$reclaude_text" ]; then
+  [ -n "$output" ] && output="${output}${separator}"
+  output="${output}${reclaude_text}"
 fi
 
 printf "%s\\n" "$output"
@@ -925,7 +1022,11 @@ printf "%s\\n" "$output"
         showWeeklyPaceMarker: Bool = true,
         showWeeklyResetTime: Bool = true,
         showWeeklyLabel: Bool = true,
-        showExtraUsage: Bool = false
+        showExtraUsage: Bool = false,
+        showReclaudeUsage: Bool = false,
+        showReclaudeBar: Bool = true,
+        showReclaudeTimeBar: Bool = false,
+        reclaudeLabel: String = "Reclaude"
     ) throws {
         let configPath = Constants.ClaudePaths.claudeDirectory
             .appendingPathComponent("statusline-config.txt")
@@ -979,6 +1080,11 @@ ELEMENT_COLOR_USAGE=\(elementColors.usageBaseHex ?? "")
 ELEMENT_COLOR_PACE=\(elementColors.paceBaseHex ?? "")
 ELEMENT_COLOR_WEEKLY=\(elementColors.weeklyBaseHex ?? "")
 ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
+SHOW_RECLAUDE_USAGE=\(showReclaudeUsage ? "1" : "0")
+SHOW_RECLAUDE_BAR=\(showReclaudeBar ? "1" : "0")
+SHOW_RECLAUDE_TIME_BAR=\(showReclaudeTimeBar ? "1" : "0")
+RECLAUDE_LABEL="\(reclaudeLabel)"
+ELEMENT_COLOR_RECLAUDE=\(elementColors.reclaudeBaseHex ?? "")
 """
 
         try config.write(to: configPath, atomically: true, encoding: .utf8)
@@ -1069,7 +1175,7 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
     }
 
     /// Writes usage data to cache file for fast bash script access
-    func writeUsageCache(usage: ClaudeUsage, profileName: String? = nil) {
+    func writeUsageCache(usage: ClaudeUsage, reclaude: ReclaudeUsage? = nil, profileName: String? = nil) {
         let cachePath = Constants.ClaudePaths.claudeDirectory
             .appendingPathComponent(".statusline-usage-cache")
 
@@ -1094,6 +1200,16 @@ ELEMENT_COLOR_EXTRA=\(elementColors.extraUsageBaseHex ?? "")
             cacheContent += "\nCOST_USED=\(usedStr)"
             cacheContent += "\nCOST_LIMIT=\(limitStr)"
             cacheContent += "\nCOST_CURRENCY=\(costCurrency)"
+        }
+
+        // Reclaude.ai carpool quota — only emit when active (gates the bash branch).
+        if let r = reclaude, r.isActive, r.quotaUsd > 0 {
+            cacheContent += "\nRECLAUDE_USED_USD=\(String(format: "%.2f", r.usedUsd))"
+            cacheContent += "\nRECLAUDE_QUOTA_USD=\(String(format: "%.2f", r.quotaUsd))"
+            if let reset = r.resetAt {
+                cacheContent += "\nRECLAUDE_RESETS_AT_MS=\(Int(reset.timeIntervalSince1970 * 1000))"
+            }
+            cacheContent += "\nRECLAUDE_STATUS=\(r.status)"
         }
 
         try? cacheContent.write(to: cachePath, atomically: true, encoding: .utf8)

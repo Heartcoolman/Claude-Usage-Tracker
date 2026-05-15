@@ -50,4 +50,8 @@ struct StatuslineElementColors: Codable, Equatable {
     /// Optional override for the extra usage (cost) gradient. `nil` = use the 10-level
     /// gradient (or `usageBaseHex` if set, matching the session gradient).
     var extraUsageBaseHex: String? = nil
+
+    /// Optional override for the reclaude.ai USD gradient. `nil` = use the 10-level
+    /// gradient (or `usageBaseHex` if set, matching the session gradient).
+    var reclaudeBaseHex: String? = nil
 }

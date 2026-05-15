@@ -147,6 +147,11 @@ enum ErrorCode: String, CaseIterable {
     case sessionKeyMalicious = "E1008"
     case sessionKeyWhitespace = "E1009"
     case sessionKeyStorageFailed = "E1010"
+    /// CLI account's saved token has a `sk-rec-` prefix — that's a reclaude.ai
+    /// proxy token, not an Anthropic OAuth token. Anthropic Messages API will
+    /// always 401 on it, so we short-circuit before sending the request.
+    /// Treated as a soft warning (banner-only, no modal alert).
+    case cliAccountIsReclaudeProxy = "E1011"
 
     // MARK: - Network Errors (2000-2099)
 
@@ -193,6 +198,18 @@ enum ErrorCode: String, CaseIterable {
     case githubServerError = "E6002"
     case githubGenericError = "E6099"
 
+    // MARK: - Reclaude.ai Errors (7000-7099)
+
+    case reclaudeNotConfigured = "E7000"
+    case reclaudeUnauthorized = "E7001"
+    case reclaudeInvalidResponse = "E7002"
+    case reclaudeLoginFailed = "E7003"
+    case reclaudeNoCookieReturned = "E7004"
+    case reclaudeCooldownActive = "E7005"
+    case reclaudeNoProfile = "E7006"
+    case reclaudeCarpoolNotEntitled = "E7007"
+    case reclaudeGeneric = "E7099"
+
     // MARK: - Unknown Errors (9000-9999)
 
     case unknown = "E9999"
@@ -208,6 +225,7 @@ enum ErrorCode: String, CaseIterable {
         case "E4": return .urlConstruction
         case "E5": return .dataStorage
         case "E6": return .github
+        case "E7": return .reclaude
         default: return .unknown
         }
     }
@@ -222,6 +240,7 @@ enum ErrorCategory: String {
     case urlConstruction = "URL Construction"
     case dataStorage = "Data Storage"
     case github = "GitHub"
+    case reclaude = "Reclaude"
     case unknown = "Unknown"
 }
 
@@ -238,6 +257,22 @@ extension AppError {
             technicalDetails: "Session key file does not exist at expected path",
             isRecoverable: true,
             recoverySuggestion: "error.session_key_not_found.suggestion".localized,
+            file: file,
+            line: line,
+            function: function
+        )
+    }
+
+    /// Synthesized when the active profile's CLI credentials carry a
+    /// `sk-rec-*` token (reclaude.ai proxy). Routed past the modal alert path
+    /// in MenuBarManager so the user gets a banner hint instead of a popup.
+    static func cliAccountIsReclaudeProxy(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .cliAccountIsReclaudeProxy,
+            message: "error.cli_account_is_reclaude_proxy".localized,
+            technicalDetails: "OAuth token has sk-rec- prefix; Anthropic Messages API will 401",
+            isRecoverable: true,
+            recoverySuggestion: "error.cli_account_is_reclaude_proxy.suggestion".localized,
             file: file,
             line: line,
             function: function
@@ -323,6 +358,106 @@ extension AppError {
             file: file,
             line: line,
             function: function
+        )
+    }
+
+    // MARK: - Reclaude.ai Errors
+
+    static func reclaudeNotConfigured(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeNotConfigured,
+            message: "error.reclaude_not_configured".localized,
+            technicalDetails: "Profile has no rc_sid cookie configured",
+            isRecoverable: true,
+            recoverySuggestion: "error.reclaude_not_configured.suggestion".localized,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeUnauthorized(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeUnauthorized,
+            message: "error.reclaude_unauthorized".localized,
+            technicalDetails: "reclaude.ai returned 401/403 — rc_sid expired",
+            isRecoverable: true,
+            recoverySuggestion: "error.reclaude_unauthorized.suggestion".localized,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeInvalidResponse(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeInvalidResponse,
+            message: "error.reclaude_invalid_response".localized,
+            technicalDetails: "Response was not an HTTPURLResponse or body could not be decoded",
+            isRecoverable: true,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeLoginFailed(statusCode: Int, file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeLoginFailed,
+            message: "error.reclaude_login_failed".localized,
+            technicalDetails: "POST /api/auth/login returned HTTP \(statusCode)",
+            isRecoverable: true,
+            recoverySuggestion: "error.reclaude_login_failed.suggestion".localized,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeNoCookieReturned(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeNoCookieReturned,
+            message: "error.reclaude_no_cookie".localized,
+            technicalDetails: "Login succeeded but rc_sid cookie absent from Set-Cookie header",
+            isRecoverable: false,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeCooldownActive(until: Date, file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeCooldownActive,
+            message: "error.reclaude_cooldown".localized,
+            technicalDetails: "Cooldown until \(until)",
+            isRecoverable: true,
+            recoverySuggestion: "error.reclaude_cooldown.suggestion".localized,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeNoProfile(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeNoProfile,
+            message: "error.reclaude_no_profile".localized,
+            technicalDetails: "Active profile not resolvable",
+            isRecoverable: false,
+            file: file, line: line, function: function
+        )
+    }
+
+    static func reclaudeGeneric(statusCode: Int, file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeGeneric,
+            message: "error.reclaude_generic".localized,
+            technicalDetails: "reclaude.ai returned HTTP \(statusCode)",
+            isRecoverable: true,
+            file: file, line: line, function: function
+        )
+    }
+
+    /// 200 OK but the org returned `enabled=false` / `state="not_applicable"`.
+    /// Means the cookie is valid but the resolved org has no carpool quota —
+    /// the user needs to point the API URL at the correct `org_id`.
+    static func reclaudeCarpoolNotEntitled(file: String = #file, line: Int = #line, function: String = #function) -> AppError {
+        return AppError(
+            code: .reclaudeCarpoolNotEntitled,
+            message: "error.reclaude_carpool_not_entitled".localized,
+            technicalDetails: "200 OK but enabled=false or state=not_applicable",
+            isRecoverable: true,
+            recoverySuggestion: "error.reclaude_carpool_not_entitled.suggestion".localized,
+            file: file, line: line, function: function
         )
     }
 

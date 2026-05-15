@@ -39,6 +39,10 @@ class SharedDataStore {
         static let statuslineShowWeeklyResetTime = "statuslineShowWeeklyResetTime"
         static let statuslineShowWeeklyLabel = "statuslineShowWeeklyLabel"
         static let statuslineShowExtraUsage = "statuslineShowExtraUsage"
+        static let statuslineShowReclaude = "statuslineShowReclaude"
+        static let statuslineShowReclaudeBar = "statuslineShowReclaudeBar"
+        static let statuslineShowReclaudeTimeBar = "statuslineShowReclaudeTimeBar"
+        static let statuslineReclaudeLabel = "statuslineReclaudeLabel"
         static let statuslineColorMode = "statuslineColorMode"
         static let statuslineSingleColorHex = "statuslineSingleColorHex"
         static let statuslineElementColors = "statuslineElementColors"
@@ -322,6 +326,41 @@ class SharedDataStore {
             return false
         }
         return defaults.bool(forKey: Keys.statuslineShowExtraUsage)
+    }
+
+    // MARK: - Reclaude statusline toggles
+    //
+    // Default off — only meaningful for users with a configured reclaude
+    // profile, and the bash branch is gated by `show_reclaude=0` upstream.
+
+    func saveStatuslineShowReclaude(_ show: Bool) {
+        defaults.set(show, forKey: Keys.statuslineShowReclaude)
+    }
+    func loadStatuslineShowReclaude() -> Bool {
+        defaults.bool(forKey: Keys.statuslineShowReclaude)
+    }
+
+    func saveStatuslineShowReclaudeBar(_ show: Bool) {
+        defaults.set(show, forKey: Keys.statuslineShowReclaudeBar)
+    }
+    func loadStatuslineShowReclaudeBar() -> Bool {
+        // Default to true — the bar is the primary visual.
+        if defaults.object(forKey: Keys.statuslineShowReclaudeBar) == nil { return true }
+        return defaults.bool(forKey: Keys.statuslineShowReclaudeBar)
+    }
+
+    func saveStatuslineShowReclaudeTimeBar(_ show: Bool) {
+        defaults.set(show, forKey: Keys.statuslineShowReclaudeTimeBar)
+    }
+    func loadStatuslineShowReclaudeTimeBar() -> Bool {
+        defaults.bool(forKey: Keys.statuslineShowReclaudeTimeBar)
+    }
+
+    func saveStatuslineReclaudeLabel(_ label: String) {
+        defaults.set(label, forKey: Keys.statuslineReclaudeLabel)
+    }
+    func loadStatuslineReclaudeLabel() -> String {
+        defaults.string(forKey: Keys.statuslineReclaudeLabel) ?? "Reclaude"
     }
 
     func saveStatuslineColorMode(_ mode: StatuslineColorMode) {

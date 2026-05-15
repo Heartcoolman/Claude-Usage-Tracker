@@ -196,6 +196,47 @@ struct GeneralSettingsView: View {
                                     )
                                 }
 
+                                // Reclaude carpool quota — independent enable + thresholds
+                                // (USD-spend %, not session %). Only shown when the active
+                                // profile actually has reclaude credentials configured.
+                                if profile.hasReclaude {
+                                    Divider()
+
+                                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+                                        SettingToggle(
+                                            title: "notifications.reclaude_enable".localized,
+                                            description: "notifications.reclaude_enable.description".localized,
+                                            isOn: Binding(
+                                                get: { profile.notificationSettings.reclaudeEnabled },
+                                                set: { newValue in
+                                                    var updated = profile
+                                                    updated.notificationSettings.reclaudeEnabled = newValue
+                                                    profileManager.updateProfile(updated)
+                                                }
+                                            )
+                                        )
+
+                                        if profile.notificationSettings.reclaudeEnabled {
+                                            Text("notifications.reclaude_thresholds".localized)
+                                                .font(DesignTokens.Typography.body)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.secondary)
+                                                .padding(.top, DesignTokens.Spacing.extraSmall)
+
+                                            CustomThresholdsEditor(
+                                                thresholds: Binding(
+                                                    get: { profile.notificationSettings.reclaudeThresholds },
+                                                    set: { newValue in
+                                                        var updated = profile
+                                                        updated.notificationSettings.reclaudeThresholds = newValue
+                                                        profileManager.updateProfile(updated)
+                                                    }
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+
                                 // Sound picker
                                 Divider()
 
